@@ -1,4 +1,4 @@
 env/
-gridworld_comments.py
-windygridworld_comments.py
+environments/gridworld_comments.py
+environments/windygridworld_comments.py
 gridworld_metalearning.py

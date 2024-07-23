@@ -1,11 +1,11 @@
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import random
 from collections import deque
 import numpy as np
-from gridworld import GridWorldEnv
-import os
+from environments.gridworld import GridWorldEnv
 
 # Define the neural network
 class DQN(nn.Module):
@@ -109,7 +109,7 @@ torch.save(policy_net.state_dict(), os.path.join("output", "dqn_gridworld.pth"))
 env.close()
 
 loaded_model = DQN(state_dim, action_dim)
-loaded_model.load_state_dict(torch.load("dqn_gridworld.pth"))
+loaded_model.load_state_dict(torch.load(os.path.join("output", "dqn_gridworld.pth")))
 
 env = GridWorldEnv(render_mode="human")
 

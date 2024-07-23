@@ -6,7 +6,6 @@ pip3 install -r requirements.txt
 ```
 
 ## References
-
 https://github.com/Farama-Foundation/gym-examples/blob/main/gym_examples/envs/grid_world.py
 https://github.com/podondra/gym-gridworlds/tree/master
 
