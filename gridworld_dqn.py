@@ -4,13 +4,13 @@ import torch.optim as optim
 import random
 from collections import deque
 import numpy as np
+
 from gridworld import GridWorldEnv
 from bio_linear import FALinear
 from kolen_pollack import KolenPollackMLP
 from feedback_alignment import FeedbackAlignmentMLP
 import os
 import matplotlib.pyplot as plt
-
 # Hyperparameters
 gamma = 0.99
 epsilon_min = 0.01
@@ -19,7 +19,7 @@ learning_rate = 0.001
 batch_size = 32
 target_update = 10
 memory_size = 10000
-num_episodes = 200
+num_episodes = 500
 episode_steps = 100
 hidden_sizes = [128]
 
@@ -206,34 +206,64 @@ def plot_models_training_loss(model_losses, ax):
     ax.set_title('Training Loss Curve')
     ax.legend()
 
-def plot_models_cosine_similarity(params, ax):
-    cosine_means = {'kp': [], 'fa': []}
-    cosine_stdevs = {'kp': [], 'fa': []}
+def gradient_dictionary_to_numpy(models_gradients):
+    """
+    input: model_gradients: {linear_type: gradients_dict}
+                gradients_dict: {param_names: [num_episodes x (<episode_steps)
+                        x (gradients tensor)]}
+    output: {linear_type: 4D numpy array}
+                4D numpy array: [num_params x num_episodes x (<episode_steps)
+                        x (gradients tensor)]
+    """
+    models_grad_np = {}
+    for linear_type in linear_types:
+        param_grads = models_gradients[linear_type]
+        for key in param_grads:
+            if "feedback" in key:
+                del param_grads[key]
 
-    for episode in range(1, num_episodes):
-        bp_params = params['bp']
-        for model_type in ['kp', 'fa']:
-            similarities = []
-            for param_name in bp_param_names:
-                update_bp = params['bp'][episode][param_name] - params['bp'][episode - 1][param_name]
-                update_model = params[model_type][episode][param_name] - params[model_type][episode - 1][param_name]
-                similarity = compute_cosine_similarity(update_model.cpu().numpy(), update_bp.cpu().numpy())
-                similarities.append(similarity)
-            mean_similarity = np.mean(similarities)
-            stdev_similarity = np.std(similarities)
-            cosine_means[model_type].append(mean_similarity)
-            cosine_stdevs[model_type].append(stdev_similarity)
+        num_params = len(param_grads)
+        max_flattened_size = max(param.numel() for episodes in param_grads.values() for steps in episodes for param in steps)
+        grads_array = np.full((num_params, num_episodes, episode_steps, max_flattened_size), np.nan)
 
-    for model_type in ['kp', 'fa']:
-        ax.plot(cosine_means[model_type], label=f"{linear_full_name[model_type]} Mean")
-        ax.fill_between(range(num_episodes-1),
-                        np.array(cosine_means[model_type]) - np.array(cosine_stdevs[model_type]),
-                        np.array(cosine_means[model_type]) + np.array(cosine_stdevs[model_type]),
-                        alpha=0.3)
-    ax.set_xlabel('Episode')
-    ax.set_ylabel('Cosine Similarity')
-    ax.set_title('Cosine Similarity of Parameter Updates')
-    ax.legend()
+        # Gradient dictionary to 4D numpy array
+        for i, (key, episodes) in enumerate(param_grads.items()):
+            for j, steps in enumerate(episodes):
+                for k, param in enumerate(steps):
+                    flattened_tensor = param.flatten().numpy()
+                    grads_array[i, j, k, :len(flattened_tensor)] = flattened_tensor
+
+        models_grad_np[linear_type] = grads_array
+    return models_grad_np
+
+# def plot_models_cosine_similarity(params, ax):
+#     cosine_means = {'kp': [], 'fa': []}
+#     cosine_stdevs = {'kp': [], 'fa': []}
+#
+#     for episode in range(1, num_episodes):
+#         bp_params = params['bp']
+#         for model_type in ['kp', 'fa']:
+#             similarities = []
+#             for param_name in bp_param_names:
+#                 update_bp = params['bp'][episode][param_name] - params['bp'][episode - 1][param_name]
+#                 update_model = params[model_type][episode][param_name] - params[model_type][episode - 1][param_name]
+#                 similarity = compute_cosine_similarity(update_model.cpu().numpy(), update_bp.cpu().numpy())
+#                 similarities.append(similarity)
+#             mean_similarity = np.mean(similarities)
+#             stdev_similarity = np.std(similarities)
+#             cosine_means[model_type].append(mean_similarity)
+#             cosine_stdevs[model_type].append(stdev_similarity)
+#
+#     for model_type in ['kp', 'fa']:
+#         ax.plot(cosine_means[model_type], label=f"{linear_full_name[model_type]} Mean")
+#         ax.fill_between(range(num_episodes-1),
+#                         np.array(cosine_means[model_type]) - np.array(cosine_stdevs[model_type]),
+#                         np.array(cosine_means[model_type]) + np.array(cosine_stdevs[model_type]),
+#                         alpha=0.3)
+#     ax.set_xlabel('Episode')
+#     ax.set_ylabel('Cosine Similarity')
+#     ax.set_title('Cosine Similarity of Parameter Updates')
+#     ax.legend()
 
 
 def train_models(model_types=linear_types):
@@ -255,10 +285,13 @@ def main():
     #     losses, _ = train_dqn(linear_type, 42)
     #     model_losses[linear_type] = losses
 
-    models_losses, _ = train_models(model_types=['kp', 'bp'])
+    models_losses, models_gradients = train_models(model_types=['kp', 'bp'])
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 9))
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 9))
     plot_models_training_loss(models_losses, ax1)
+    # plot_models_cosine_similarity(models_gradients, ax2)
+    # plot_models_snr(models_gradients, ax3)
+
     plt.tight_layout()
     plt.show()
 
