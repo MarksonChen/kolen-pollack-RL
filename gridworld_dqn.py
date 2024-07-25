@@ -46,7 +46,7 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.model(x)
 
-linear_types = ['kp', 'fa', 'bp'][0:3]
+linear_types = ['fa', 'kp', 'bp'][1:3]
 # Change here to only test a particular MLP type
 linear_full_name = {'kp': 'Kolen-Pollack', 'fa': 'Feedback Alignment', 'bp': 'Backpropagation'}
 linear_dict = {'fa': FeedbackAlignmentMLP, 'kp': KolenPollackMLP, 'bp': MLP}
