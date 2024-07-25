@@ -6,7 +6,6 @@ from collections import deque
 import numpy as np
 
 from gridworld import GridWorldEnv
-from bio_linear import FALinear
 from kolen_pollack import KolenPollackMLP
 from feedback_alignment import FeedbackAlignmentMLP
 import os
