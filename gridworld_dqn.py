@@ -19,7 +19,8 @@ learning_rate = 0.001
 batch_size = 32
 target_update = 10
 memory_size = 10000
-num_episodes = 600
+num_episodes = 200
+episode_steps = 100
 hidden_sizes = [128]
 
 env = GridWorldEnv(render_mode=None)
@@ -102,7 +103,7 @@ def optimize_model(memory, policy_net, target_net, optimizer):
     optimizer.step()
     return loss.item()
 
-def train_dqn(linear_type, seed):
+def train_dqn(linear_type, seed, get_gradients=False):
 
     set_seed(seed)
     env = GridWorldEnv(render_mode=None)
@@ -118,6 +119,15 @@ def train_dqn(linear_type, seed):
     epsilon = 1.0
     losses = []
 
+
+    if get_gradients:
+        gradients = {}
+        for name, param in policy_net.named_parameters():
+            if param.requires_grad:
+                gradients[name] = []
+    else:
+        gradients = None
+
     for episode in range(num_episodes):
         state, _ = env.reset()
         state = preprocess_state(state)
@@ -125,7 +135,11 @@ def train_dqn(linear_type, seed):
         total_loss = 0
         loss_num = 0  # optimize_model may return None
 
-        for t in range(100):
+        if get_gradients:
+            for name, param in policy_net.named_parameters():
+                gradients[name].append([])
+
+        for t in range(episode_steps):
             action = select_action(state, epsilon, policy_net)
             next_state, reward, terminated, _, _ = env.step(action)
             next_state = preprocess_state(next_state)
@@ -135,9 +149,14 @@ def train_dqn(linear_type, seed):
             total_reward += reward
 
             loss = optimize_model(memory, policy_net, target_net, optimizer)
+
             if loss is not None:
                 loss_num += 1
                 total_loss += loss
+                if get_gradients:
+                    # gradients[-1].append([param.grad for name, param in policy_net.named_parameters()])
+                    for name, param in policy_net.named_parameters():
+                        gradients[name][-1].append(param.grad)
 
             if terminated:
                 break
@@ -153,7 +172,7 @@ def train_dqn(linear_type, seed):
 
     torch.save(policy_net.state_dict(), os.path.join("output", f"dqn_gridworld_{linear_type}.pth"))
     env.close()
-    return losses
+    return losses, gradients
 
 
 
@@ -229,21 +248,18 @@ def plot_models_cosine_similarity(params, ax):
 
 
 # In the main code
-if __name__ == "__main__":
-    # load_run_and_render('fa')
-
+def main():
     model_losses = {}
-    # model_params = {}
     for linear_type in linear_types:
-        losses = train_dqn(linear_type, 42)
+        losses, _ = train_dqn(linear_type, 42)
         model_losses[linear_type] = losses
-        # model_params[linear_type] = params
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 9))
     plot_models_training_loss(model_losses, ax1)
-    # plot_models_cosine_similarity(model_params, ax2)
     plt.tight_layout()
     plt.show()
 
-    # plot_models_SNR(model_params)
+
+if __name__ == "__main__":
+    main()
 
