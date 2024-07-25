@@ -92,9 +92,6 @@ def optimize_model(memory, policy_net, target_net, optimizer):
     done_batch = torch.tensor(done_batch, dtype=torch.float32, requires_grad=True)
 
     q_values = policy_net(state_batch).gather(1, action_batch)
-    print(state_batch)
-    print(len(state_batch))
-    print(policy_net(state_batch))
     next_q_values = target_net(next_state_batch).max(1)[0].detach()
     expected_q_values = reward_batch + (gamma * next_q_values * (1 - done_batch))
 
