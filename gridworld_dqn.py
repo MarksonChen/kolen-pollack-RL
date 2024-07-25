@@ -206,16 +206,6 @@ def plot_models_training_loss(model_losses, ax):
     ax.set_title('Training Loss Curve')
     ax.legend()
 
-def compute_cosine_similarity(data1, data2):
-    data1 = data1.reshape(-1)
-    data2 = data2.reshape(-1)
-    numerator = np.dot(data1, data2)
-    denominator = (
-            np.sqrt(np.dot(data1, data1)) * np.sqrt(np.dot(data2, data2))
-    )
-    cosine_sim = numerator / denominator
-    return cosine_sim
-
 def plot_models_cosine_similarity(params, ax):
     cosine_means = {'kp': [], 'fa': []}
     cosine_stdevs = {'kp': [], 'fa': []}
@@ -246,16 +236,29 @@ def plot_models_cosine_similarity(params, ax):
     ax.legend()
 
 
+def train_models(model_types=linear_types):
+    models_losses = {}
+    models_gradients = {}
+    for linear_type in model_types:
+        losses, param_grads = train_dqn(linear_type, 42, get_gradients=True)
+        models_losses[linear_type] = losses
+        keys_to_delete = [key for key in param_grads.keys() if "feedback" in key]
+        for key in keys_to_delete:
+            del param_grads[key]
+        models_gradients[linear_type] = param_grads
+    return models_losses, models_gradients
 
 # In the main code
 def main():
-    model_losses = {}
-    for linear_type in linear_types:
-        losses, _ = train_dqn(linear_type, 42)
-        model_losses[linear_type] = losses
+    # model_losses = {}
+    # for linear_type in linear_types:
+    #     losses, _ = train_dqn(linear_type, 42)
+    #     model_losses[linear_type] = losses
+
+    models_losses, _ = train_models(model_types=['kp', 'bp'])
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 9))
-    plot_models_training_loss(model_losses, ax1)
+    plot_models_training_loss(models_losses, ax1)
     plt.tight_layout()
     plt.show()
 

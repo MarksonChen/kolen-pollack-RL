@@ -40,20 +40,11 @@ def gradient_dictionary_to_numpy(models_gradients):
         models_grad_np[linear_type] = grads_array
     return models_grad_np
 
-
-# def row_std_with_nan(arr, axis=2):
-#     # Replace standard deviation of rows filled with np.nan with np.nan
-#     nan_rows = np.all(np.isnan(arr), axis=axis)
-#     std_devs = np.nanstd(arr, axis=axis)
-#     std_devs[nan_rows] = np.nan
-#     return std_devs
-
 def compute_snr(models_grads, epsilon=1e-3):
     """
     models_grads: {linear_type: 4D numpy array}
                 4D numpy array: [num_params x num_episodes x (<episode_steps)
                         x (gradients tensor)]
-
     """
     models_snr = {}
     for linear_type in linear_types:
@@ -70,24 +61,15 @@ def compute_snr(models_grads, epsilon=1e-3):
     return models_snr
 
 def train_and_plot_snr():
-    model_losses = {}
-    models_gradients = {}
-    for linear_type in linear_types:
-        losses, param_grads = train_dqn(linear_type, 42, get_gradients=True)
-        model_losses[linear_type] = losses
-        keys_to_delete = [key for key in param_grads.keys() if "feedback" in key]
-        for key in keys_to_delete:
-            del param_grads[key]
-        models_gradients[linear_type] = param_grads
+    models_losses, models_gradients = train_models(model_types=['kp', 'bp'])
 
     snr_dict = compute_snr(gradient_dictionary_to_numpy(models_gradients))
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 9))
-    plot_models_training_loss(model_losses, ax1)
+    plot_models_training_loss(models_losses, ax1)
     plot_models_SNR(snr_dict, ax2)
     plt.tight_layout()
     plt.show()
-
 
 
 if __name__ == "__main__":
