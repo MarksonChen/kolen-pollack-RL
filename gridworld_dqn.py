@@ -18,7 +18,7 @@ learning_rate = 0.001
 batch_size = 32
 target_update = 10
 memory_size = 10000
-num_episodes = 500
+num_episodes = 600  # Change this
 episode_steps = 100
 hidden_sizes = [128]
 
@@ -83,6 +83,16 @@ def optimize_model(memory, policy_net, target_net, optimizer):
     optimizer.step()
     return loss.item()
 
+def plot_models_training_loss(model_losses, ax, title='Training Loss Curve (one gameplay)'):
+    for linear_type in linear_types:
+        ax.plot(model_losses[linear_type], label=linear_full_name[linear_type])
+    ax.set_xlabel('Episode')
+    ax.set_ylabel('Loss')
+    ax.set_yscale('log')
+    ax.set_title(title)
+    ax.legend()
+
+
 def load_run_and_render(linear_type):
     env = GridWorldEnv(render_mode="human")
 
@@ -102,16 +112,6 @@ def load_run_and_render(linear_type):
             state = preprocess_state(state)
 
     env.close()
-
-
-def plot_models_training_loss(model_losses, ax):
-    for linear_type in linear_types:
-        ax.plot(model_losses[linear_type], label=linear_full_name[linear_type])
-    ax.set_xlabel('Episode')
-    ax.set_ylabel('Loss')
-    ax.set_yscale('log')
-    ax.set_title('Training Loss Curve')
-    ax.legend()
 
 def gradient_dictionary_to_numpy(models_gradients):
     """
@@ -177,7 +177,7 @@ def map_state_dict_keys(state_dict, model_type):
 
     return mapped_state_dict
 
-def train_dqn(linear_type, seed, initial_params=None, get_gradients=False):
+def train_dqn(linear_type, seed, initial_params=None, get_gradients=False, save_to_file=False):
 
     set_seed(seed)
     env = GridWorldEnv(render_mode=None)
@@ -234,7 +234,6 @@ def train_dqn(linear_type, seed, initial_params=None, get_gradients=False):
                 loss_num += 1
                 total_loss += loss
                 if get_gradients:
-                    # gradients[-1].append([param.grad for name, param in policy_net.named_parameters()])
                     for name, param in policy_net.named_parameters():
                         gradients[name][-1].append(param.grad)
 
@@ -243,6 +242,7 @@ def train_dqn(linear_type, seed, initial_params=None, get_gradients=False):
 
         if loss_num > 0:  # loss_num = 0 if terminated within batch_size steps
             losses.append(total_loss / loss_num)
+        else: losses.append(np.nan)
         epsilon = max(epsilon_min, epsilon_decay * epsilon)
 
         if episode % target_update == 0:
@@ -250,7 +250,9 @@ def train_dqn(linear_type, seed, initial_params=None, get_gradients=False):
 
         print(f"Episode {episode}, Total Reward: {total_reward}")
 
-    # torch.save(policy_net.state_dict(), os.path.join("output", f"dqn_gridworld_{linear_type}.pth"))
+    if save_to_file:
+        torch.save(policy_net.state_dict(), os.path.join("output", f"dqn_gridworld_{linear_type}.pth"))
+        print("Model saved:", os.path.join("output", f"dqn_gridworld_{linear_type}.pth"))
     env.close()
     return losses, gradients, init_params
 
@@ -260,7 +262,7 @@ def remove_feedback_gradients(param_grads):
         del param_grads[key]
     return param_grads
 
-def train_models(model_types=None):
+def train_models(model_types=None, seed=42):
     if model_types is None:
         model_types = linear_types
     models_losses = {}
@@ -269,7 +271,7 @@ def train_models(model_types=None):
     initial_params = None
     for linear_type in model_types:
         initial_params = map_state_dict_keys(initial_params, linear_type) if initial_params is not None else None
-        losses, param_grads, init_params = train_dqn(linear_type, 42,
+        losses, param_grads, init_params = train_dqn(linear_type, seed,
                     initial_params=initial_params, get_gradients=True)
         initial_params = {k: v.clone().detach() for k, v in init_params.items()}
 
@@ -278,18 +280,31 @@ def train_models(model_types=None):
     return models_losses, models_gradients
 
 # In the main code
+def plot_avg_models_training_loss(ax, trials=20, model_types=['kp', 'bp']):
+    total_models_losses_raw, _ = train_models(model_types=['kp', 'bp'], seed=0)
+    total_models_losses = {}
+    for linear_type in linear_types:
+        total_models_losses[linear_type] = np.array(total_models_losses_raw[linear_type])
+
+    for i in range(1, trials):
+        models_losses, _ = train_models(model_types=['kp', 'bp'], seed=i)
+        for linear_type in linear_types:
+            model_losses_np = np.nan_to_num(np.array(models_losses[linear_type]), nan=0.0)
+            total_models_losses[linear_type] += model_losses_np
+
+    for linear_type in linear_types:
+        total_models_losses[linear_type] /= trials
+
+    plot_models_training_loss(total_models_losses, ax,
+                              title=f'Training Loss Curve (Averaged Across {trials} gameplays)')
+
+
 def main():
-    # model_losses = {}
-    # for linear_type in linear_types:
-    #     losses, _ = train_dqn(linear_type, 42)
-    #     model_losses[linear_type] = losses
+    models_losses, _ = train_models(model_types=['kp', 'bp'])
 
-    models_losses, models_gradients = train_models(model_types=['kp', 'bp'])
-
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 9))
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
     plot_models_training_loss(models_losses, ax1)
-    # plot_models_cosine_similarity(models_gradients, ax2)
-    # plot_models_snr(models_gradients, ax3)
+    plot_avg_models_training_loss(ax2, model_types=['kp', 'bp'])
 
     plt.tight_layout()
     plt.show()
